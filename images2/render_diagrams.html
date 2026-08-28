@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <title>mymathjeju Diagrams Renderer</title>
+    <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+    <style>
+        body { font-family: 'Pretendard', sans-serif; background-color: #f8fafc; padding: 20px; text-align: center; }
+        .card { background: white; border-radius: 12px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); margin: 30px auto; padding: 25px; max-width: 1000px; }
+        h2 { color: #1e293b; margin-bottom: 20px; border-bottom: 2px solid #e2e8f0; padding-bottom: 10px; }
+        .mermaid { display: flex; justify-content: center; }
+        #status { font-weight: bold; color: #0284c7; margin-bottom: 20px; font-size: 18px; }
+    </style>
+</head>
+<body>
+    <h1>🏝️ mymathjeju.py Mermaid 다이어그램</h1>
+    <div id="status">다이어그램 렌더링 및 자동 저장 중...</div>
+
+    <div class="card" id="card-01">
+        <h2>1. 전체 시스템 구조도 (System Architecture)</h2>
+        <div class="mermaid" id="diagram_01">
+graph TD
+    classDef ui fill:#E1F5FE,stroke:#0288D1,stroke-width:2px;
+    classDef lcel fill:#FFF3E0,stroke:#F57C00,stroke-width:2px;
+    classDef tool fill:#E8F5E9,stroke:#388E3C,stroke-width:2px;
+    classDef model fill:#F3E5F5,stroke:#7B1FA2,stroke-width:2px;
+
+    User(["👤 사용자 (User)"]):::ui
+    
+    subgraph Streamlit_UI ["🖥️ Streamlit 웹 화면 & 세션 관리"]
+        ChatInput["💬 채팅 입력창 (st.chat_input)"]:::ui
+        SessionState["🧠 대화 기록 보관소 (st.session_state)"]:::ui
+        Sidebar["⚙️ 사이드바 (API키 확인 / 온도 조절 / 빠른 질문)"]:::ui
+        ChatDisplay["📺 채팅창 화면 출력 (st.chat_message)"]:::ui
+    end
+
+    subgraph LCEL_Chain ["🔗 LangChain LCEL 파이프라인"]
+        Prompt["1️⃣ 프롬프트 (ChatPromptTemplate)<br/>- 시스템 역할 정의<br/>- 대화 기록(chat_history)<br/>- 현재 질문(question)"]:::lcel
+        ModelWithTools["2️⃣ LLM 모델 (ChatOpenAI)<br/>- gpt-4o-mini<br/>- 도구 바인딩 (.bind_tools)"]:::model
+        ExecuteTool["3️⃣ 도구 실행기 (execute_tool_calls)<br/>- tool_calls 파싱 및 자동 실행"]:::lcel
+    end
+
+    subgraph Tools_Layer ["🛠️ 도구 & 스키마 (Tools & Pydantic)"]
+        MathTool["🔢 math_tool<br/>- MathQuery 스키마<br/>- +, -, *, /, abs 연산"]:::tool
+        JejuTool["🍊 jeju_tool<br/>- JejuQuery 스키마<br/>- 날씨/맛집/관광지/여행팁"]:::tool
+    end
+
+    User --> ChatInput
+    ChatInput --> SessionState
+    SessionState --> Prompt
+    Prompt --> ModelWithTools
+    ModelWithTools --> ExecuteTool
+    ExecuteTool --> MathTool
+    ExecuteTool --> JejuTool
+    MathTool --> ExecuteTool
+    JejuTool --> ExecuteTool
+    ExecuteTool --> ChatDisplay
+    ModelWithTools --> ChatDisplay
+    ChatDisplay --> SessionState
+    ChatDisplay --> User
+        </div>
+    </div>
+
+    <div class="card" id="card-02">
+        <h2>2. 질문 처리 및 도구 호출 흐름도 (Execution Flowchart)</h2>
+        <div class="mermaid" id="diagram_02">
+flowchart TD
+    Start(["🚀 사용자 질문 입력"]) --> SaveUserMsg["1. 사용자 메시지를 세션(messages)에 저장 및 화면 표시"]
+    SaveUserMsg --> MakeHistory["2. 이전 대화 기록을 LangChain 메시지(Human/AI)로 변환"]
+    MakeHistory --> RunChain["3. LCEL 체인 실행 (invoke)"]
+    RunChain --> LLMDecision{"4. LLM 모델의 판단<br/>(도구 호출이 필요한가?)"}
+    
+    LLMDecision -->|아니오 (일반 대화)| NormalResponse["💬 LLM 일반 텍스트 답변 생성"]
+    NormalResponse --> ShowOutput["5. 화면에 답변 출력 & 세션에 저장"]
+    
+    LLMDecision -->|예 (도구 필요)| HasToolCalls["🛠️ tool_calls 생성 (도구명 & 파라미터 JSON)"]
+    HasToolCalls --> CheckToolType{"어떤 도구인가?"}
+    CheckToolType -->|math_tool| MathExec["🔢 MathQuery 스키마 검증 및 calculate() 실행<br/>예: abs(2 - 17) ➡️ 15"]
+    CheckToolType -->|jeju_tool| JejuExec["🍊 JejuQuery 스키마 검증 및 get_jeju_info() 실행<br/>예: 제주 서귀포 날씨 ➡️ 맑음, 22°C"]
+    
+    MathExec --> FormatResult["결과 문자열 포맷팅<br/>'✅ [math_tool 호출 성공] ...'"]
+    JejuExec --> FormatResult
+    FormatResult --> ShowOutput
+    ShowOutput --> End(["🏁 대기 상태 (다음 질문 대기)"])
+        </div>
+    </div>
+
+    <div class="card" id="card-03">
+        <h2>3. 클래스 및 도구 관계도 (Class Diagram)</h2>
+        <div class="mermaid" id="diagram_03">
+classDiagram
+    class MathQuery {
+        +str operation
+        +float num1
+        +float num2
+        +calculate() float
+    }
+    class JejuQuery {
+        +str category
+        +str location
+        +Optional~str~ date
+        +get_jeju_info() str
+    }
+    class MathTool {
+        +args_schema: MathQuery
+        +invoke(operation, num1, num2)
+    }
+    class JejuTool {
+        +args_schema: JejuQuery
+        +invoke(category, location, date)
+    }
+    MathQuery <.. MathTool : 입력 규격 검증
+    JejuQuery <.. JejuTool : 입력 규격 검증
+        </div>
+    </div>
+
+    <script>
+        mermaid.initialize({ startOnLoad: true, theme: 'default' });
+
+        async function svgToPngDataUrl(svgElement) {
+            return new Promise((resolve) => {
+                const svgString = new XMLSerializer().serializeToString(svgElement);
+                const svgBlob = new Blob([svgString], { type: 'image/svg+xml;charset=utf-8' });
+                const URL = window.URL || window.webkitURL || window;
+                const blobURL = URL.createObjectURL(svgBlob);
+                const image = new Image();
+                
+                image.onload = () => {
+                    const canvas = document.createElement('canvas');
+                    const scale = 2; // 고해상도
+                    const bbox = svgElement.getBoundingClientRect();
+                    canvas.width = (bbox.width || 800) * scale;
+                    canvas.height = (bbox.height || 600) * scale;
+                    const context = canvas.getContext('2d');
+                    context.fillStyle = '#FFFFFF';
+                    context.fillRect(0, 0, canvas.width, canvas.height);
+                    context.drawImage(image, 0, 0, canvas.width, canvas.height);
+                    resolve(canvas.toDataURL('image/png'));
+                };
+                image.src = blobURL;
+            });
+        }
+
+        async function saveAllDiagrams() {
+            // mermaid 렌더링 대기
+            await new Promise(r => setTimeout(r, 1200));
+
+            const list = [
+                { id: 'diagram_01', name: '01_system_architecture' },
+                { id: 'diagram_02', name: '02_execution_flowchart' },
+                { id: 'diagram_03', name: '03_class_diagram' }
+            ];
+
+            for (const item of list) {
+                const container = document.getElementById(item.id);
+                const svg = container.querySelector('svg');
+                if (svg) {
+                    const svgContent = new XMLSerializer().serializeToString(svg);
+                    const pngDataUrl = await svgToPngDataUrl(svg);
+
+                    await fetch('/save_diagram', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            name: item.name,
+                            svg: svgContent,
+                            png: pngDataUrl
+                        })
+                    });
+                }
+            }
+            document.getElementById('status').innerText = '✅ 모든 다이어그램이 images2 폴더에 성공적으로 저장되었습니다!';
+        }
+
+        window.addEventListener('load', () => {
+            setTimeout(saveAllDiagrams, 1000);
+        });
+    </script>
+</body>
+</html>
